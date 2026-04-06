@@ -1,0 +1,165 @@
+  substitutions:
+    device_name: s6504035610121
+    friendly_name: s6504035610121
+    # ขาเดิมจากต้นแบบ
+    clpin: GPIO18
+    mopin: GPIO23
+    dcpin: GPIO27
+    cspin: GPIO5
+    tres: GPIO4
+    sdapin: GPIO21
+    sclpin: GPIO22
+
+  esphome:
+    name: $device_name
+    friendly_name: $friendly_name
+
+  esp32:
+    board: esp32dev
+    framework:
+      type: arduino
+
+  logger:
+
+  ota:
+    platform: esphome
+    password: !secret ota_password
+
+  wifi:
+    ssid: !secret wifi_ssid
+    password: !secret wifi_password
+    ap:
+      ssid: $device_name Fallback Hotspot
+      password: !secret wifi_ap_password # ดึงจากความลับที่คุณให้มา
+
+  # ระบบจัดการเบื้องหลัง
+  captive_portal:
+
+  web_server:
+    port: 80
+
+  i2c:
+    sda: $sdapin
+    scl: $sclpin
+    scan: true
+
+  spi:
+    clk_pin: $clpin
+    mosi_pin: $mopin
+
+  # ตั้งค่า MQTT ตาม secrets ของคุณ
+  mqtt:
+    broker: !secret mqtt_broker
+    # username: !secret mqtt_username # เปิดไว้ถ้าต้องการใช้
+    # password: !secret mqtt_password # เปิดไว้ถ้าต้องการใช้
+
+  time:
+    - platform: sntp
+      id: sntp_time
+      timezone: "Asia/Bangkok"
+      on_time:
+        - seconds: 0
+          then:
+            - lambda: |-
+                // อัปเดต วัน-เวลา แถบบน
+                char time_buf[32];
+                auto time_now = id(sntp_time).now();
+                time_now.strftime(time_buf, sizeof(time_buf), "%d/%m/%Y %H:%M");
+                lv_label_set_text(id(lbl_time_date), time_buf);
+
+  # อุปกรณ์ Output สำหรับ Node-RED สั่งงาน
+  switch:
+    - platform: gpio
+      pin: 2
+      name: "Internal LED"
+      id: led_built_in
+    - platform: gpio
+      pin: 14
+      name: "Status LED"
+      id: led_status
+    - platform: gpio
+      pin: 13
+      name: "Gas Alarm Buzzer"
+      id: gas_buzzer
+
+  sensor:
+    - platform: adc
+      pin: GPIO34
+      name: "MQ2 Sensor"
+      id: mq2_val
+      update_interval: 1s
+      attenuation: 12db
+      on_value:
+        then:
+          - lambda: |-
+              // 1. คำนวณค่า Bit (12-bit: 0-4095)
+              int bit_val = (x / 3.3) * 4095;
+              if (bit_val > 4095) bit_val = 4095;
+
+              // 2. แสดงผลบนจอ
+              char bit_buf[16], v_buf[16];
+              sprintf(bit_buf, "%d BIT", bit_val);
+              sprintf(v_buf, "%.2f V", x);
+
+              lv_label_set_text(id(lbl_bit), bit_buf);
+              lv_label_set_text(id(lbl_volt), v_buf);
+
+  # ส่งข้อมูลไป Node-RED ทุก 5 วินาที
+  interval:
+    - interval: 5s
+      then:
+        - mqtt.publish_json:
+            topic: "tele/s6504035610121/SENSOR"
+            payload: |-
+              root["Time"] = id(sntp_time).now().strftime("%Y-%m-%dT%H:%M:%S");
+              root["MQ2_Raw"] = id(mq2_val).state;
+
+  # ฟอนต์และหน้าจอ
+  font:
+    - file: "gfonts://Roboto"
+      id: font_time
+      size: 20
+    - file: "gfonts://Roboto"
+      id: font_bit
+      size: 50
+    - file: "gfonts://Roboto"
+      id: font_v
+      size: 30
+
+  display:
+    - platform: ili9xxx
+      model: gc9a01a
+      id: my_display
+      cs_pin: $cspin
+      dc_pin: $dcpin
+      reset_pin: $tres
+      invert_colors: true
+      dimensions:
+        width: 240
+        height: 240
+
+  lvgl:
+    displays:
+      - my_display
+    pages:
+      - id: main_page
+        bg_color: 0x000000
+        widgets:
+          - label: # ส่วนที่ 1: วันที่-เวลา (บน)
+              id: lbl_time_date
+              text_font: font_time
+              align: top_mid
+              y: 45
+              text_color: 0xFFFFFF
+          - label: # ส่วนที่ 2: ค่า BIT (กลาง)
+              id: lbl_bit
+              text_font: font_bit
+              align: center
+              y: 0
+              text_color: 0x00FF00
+          - label: # ส่วนที่ 3: ค่าแรงดัน V (ล่าง)
+              id: lbl_volt
+              text_font: font_v
+              align: bottom_mid
+              y: -50
+              text_color: 0xFFCC00

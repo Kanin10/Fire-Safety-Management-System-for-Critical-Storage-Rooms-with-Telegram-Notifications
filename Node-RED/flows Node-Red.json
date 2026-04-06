@@ -1,0 +1,849 @@
+[
+    {
+        "id": "855e9a8019e0e61c",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e57b19175bb62c58",
+        "type": "mqtt in",
+        "z": "855e9a8019e0e61c",
+        "name": "Receive Sensor Data",
+        "topic": "tele/s6504035610121/SENSOR",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "c72ccfb0788598f1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 100,
+        "y": 360,
+        "wires": [
+            [
+                "43e9155ae0aebed1",
+                "ad42fa365ff5a9f1"
+            ]
+        ]
+    },
+    {
+        "id": "43e9155ae0aebed1",
+        "type": "debug",
+        "z": "855e9a8019e0e61c",
+        "name": "Raw Msg",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 300,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "ad42fa365ff5a9f1",
+        "type": "json",
+        "z": "855e9a8019e0e61c",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 310,
+        "y": 360,
+        "wires": [
+            [
+                "17b46ab034d0bd73",
+                "6c24641833ca784c",
+                "ef73df6728049dcf"
+            ]
+        ]
+    },
+    {
+        "id": "17b46ab034d0bd73",
+        "type": "debug",
+        "z": "855e9a8019e0e61c",
+        "name": "debug 9",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 600,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "e4c8d9e4c41c233f",
+        "type": "debug",
+        "z": "855e9a8019e0e61c",
+        "name": "debug 10",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 700,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "6c24641833ca784c",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "function 6",
+        "func": "// 1. รับค่าแรงดันจาก ESP32\nlet voltage = Number(msg.payload.MQ2_Raw);\n\n// 2. ตั้งค่าจุดอ้างอิง (Calibration)\n// ⚠️ สำคัญ: เปลี่ยนเลข 0.45 ด้านล่างนี้ ให้ตรงกับค่า V ที่โชว์บนหน้าจอตอนอากาศสะอาด\nlet V_zero = 0.20; \n\nlet V_max = 3.30;  // บอร์ด ESP32 ปกติรับแรงดันสูงสุดที่ 3.3V ครับ\nlet P_max = 5000;  // ค่า PPM สูงสุดที่ต้องการเทียบบัญญัติไตรยางศ์\n\n// 3. คำนวณค่า PPM แบบ Linear (สมการเส้นตรง)\nlet ppm = ((voltage - V_zero) * P_max) / (V_max - V_zero);\n\n// 4. จัดการค่าที่ติดลบ (ถ้าแรงดันแกว่งลงต่ำกว่า V_zero ให้เซ็ตเป็น 0 เลย)\nif (ppm < 0) {\n    ppm = 0;\n}\n\n// ปัดเศษให้เป็นจำนวนเต็ม\nlet finalPpm = Math.round(ppm);\n\n// 5. ส่งค่าออกไป\nmsg.payload = finalPpm; \nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 360,
+        "wires": [
+            [
+                "e4c8d9e4c41c233f",
+                "fce76448b0d038d3",
+                "1bcf8ac7bedc0b15",
+                "c8298615d5087fd1",
+                "25bc9aaf2cc63514",
+                "97e8e0069f537a22"
+            ]
+        ]
+    },
+    {
+        "id": "1bcf8ac7bedc0b15",
+        "type": "blynk-iot-out-write",
+        "z": "855e9a8019e0e61c",
+        "name": "Write Smoke Level(V0)",
+        "pin": "0",
+        "pinmode": "0",
+        "client": "a2964af0c164f5a7",
+        "x": 930,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "25bc9aaf2cc63514",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "Check Condition & Limit",
+        "func": "var chat_id = \"8568864018\";\nvar cooldown = 10000; // 10 วินาที\n\nvar currentPPM = msg.payload; \nvar lastAlert = flow.get(\"lastAlertTime\") || 0;\nvar now = Date.now();\n\n// เช็คเงื่อนไข: เกิน 1000 และ พ้นช่วง Cooldown แล้ว\nif (currentPPM >= 600 && (now - lastAlert > cooldown)) {\n    flow.set(\"lastAlertTime\", now);\n    msg.payload = {\n        \"chat_id\": chat_id,\n        \"text\": \"🚨 ตรวจพบควัน ก๊าซเกินค่าที่กำหนด! ค่าปัจจุบัน: \" + currentPPM + \" PPM\"\n    };\n    return msg; // ส่งออกไปหาโหนด Send to Telegram\n}\n\nreturn null; // ถ้าไม่เข้าเงื่อนไข ไม่ต้องส่งอะไรออกไป",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 880,
+        "y": 560,
+        "wires": [
+            [
+                "94e26c9e5da937fe"
+            ]
+        ]
+    },
+    {
+        "id": "94e26c9e5da937fe",
+        "type": "http request",
+        "z": "855e9a8019e0e61c",
+        "name": "Send to Telegram",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.telegram.org/bot8702736140:AAH3_nQocqcToDl8SWyPRItZJDcKmSC2y0w/sendMessage",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1100,
+        "y": 560,
+        "wires": [
+            [
+                "3ad8267007f2218e"
+            ]
+        ]
+    },
+    {
+        "id": "3ad8267007f2218e",
+        "type": "debug",
+        "z": "855e9a8019e0e61c",
+        "name": "Telegram Status",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1300,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "3652cf53a4b4d899",
+        "type": "delay",
+        "z": "855e9a8019e0e61c",
+        "name": "Limit 1 msg/min",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "minute",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 860,
+        "y": 500,
+        "wires": [
+            [
+                "7563ce2e0e2acb2c"
+            ]
+        ]
+    },
+    {
+        "id": "7563ce2e0e2acb2c",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "Prepare Payload",
+        "func": "// รับค่า finalPpm (ตัวเลข) มาห่อใส่ชื่อ \"smoke\"\nmsg.payload = {\n    \"smoke\": msg.payload\n};\n\n// กำหนด Content-Type เป็น JSON\nmsg.headers = {\n    \"Content-Type\": \"application/json\"\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1070,
+        "y": 500,
+        "wires": [
+            [
+                "3a212f1a553aefdc"
+            ]
+        ]
+    },
+    {
+        "id": "3a212f1a553aefdc",
+        "type": "http request",
+        "z": "855e9a8019e0e61c",
+        "name": "POST to Google Sheets",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "https://script.google.com/macros/s/AKfycbxnAJGdLAuraLXus9wXrr5Y9mBz24GsNR68MW4lkqSTxhDzpvd3wNOpxmkHvBGEQFDD/exec",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1310,
+        "y": 500,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c8298615d5087fd1",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "Control Buzzer & LED",
+        "func": "// 1. แปลงค่าให้ชัวร์ว่าเป็นตัวเลข\nvar ppm = Number(msg.payload);\n\nvar threshold_on = 600;\nvar threshold_off = 550;\n\nvar command = \"\";\n\n// 2. เช็คเงื่อนไข\nif (ppm >= threshold_on) {\n    command = \"ON\";\n} else if (ppm < threshold_off) {\n    command = \"OFF\";\n}\n\n// 3. ดึงสถานะล่าสุดที่เคยส่งไป (เพื่อป้องกันการส่งคำสั่งซ้ำรัวๆ)\nvar last_command = context.get('last_command') || \"\";\n\n// 4. ส่งคำสั่งออกไปเฉพาะเมื่อมีคำสั่ง และ \"มีการเปลี่ยนแปลงสถานะจากเดิมจริงๆ\"\nif (command !== \"\" && command !== last_command) {\n    \n    // บันทึกสถานะล่าสุดไว้ใช้เช็คในรอบถัดไป\n    context.set('last_command', command);\n\n    // ขาออกที่ 1: ส่งไป MQTT Out ของ Buzzer (แก้ Topic แล้ว)\n    var msg1 = { \n        topic: \"s6504035610121/switch/gas_alarm_buzzer/command\", \n        payload: command \n    };\n    \n    // ขาออกที่ 2: ส่งไป MQTT Out ของ LED (แก้ Topic แล้ว)\n    var msg2 = { \n        topic: \"s6504035610121/switch/status_led/command\", \n        payload: command \n    };\n    \n    // ส่งข้อความออกไปที่ Output 1 และ Output 2 ตามลำดับ\n    return [msg1, msg2];\n}\n\n// ถ้าค่าอยู่ระหว่าง 550-599 หรือสถานะไม่เปลี่ยน จะไม่ส่งอะไรออกไป\nreturn null;",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 880,
+        "y": 640,
+        "wires": [
+            [
+                "efd0c6230433a70e"
+            ],
+            [
+                "79f5e7b4c0027577",
+                "5381bef24e790e87"
+            ]
+        ]
+    },
+    {
+        "id": "efd0c6230433a70e",
+        "type": "mqtt out",
+        "z": "855e9a8019e0e61c",
+        "name": "Buzzer",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "c72ccfb0788598f1",
+        "x": 1330,
+        "y": 620,
+        "wires": []
+    },
+    {
+        "id": "79f5e7b4c0027577",
+        "type": "mqtt out",
+        "z": "855e9a8019e0e61c",
+        "name": "LED",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "c72ccfb0788598f1",
+        "x": 1310,
+        "y": 680,
+        "wires": []
+    },
+    {
+        "id": "fce76448b0d038d3",
+        "type": "ui-gauge",
+        "z": "855e9a8019e0e61c",
+        "name": "Current Gas/Smoke Level",
+        "group": "e8dbb8c41abe46a7",
+        "order": 1,
+        "value": "payload",
+        "valueType": "msg",
+        "width": 4,
+        "height": "5",
+        "gtype": "gauge-34",
+        "gstyle": "rounded",
+        "title": "Current Gas/Smoke Level",
+        "alwaysShowTitle": false,
+        "floatingTitlePosition": "top-left",
+        "units": "ppm",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#5cd65c",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "400",
+                "color": "#ffc800",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "600",
+                "color": "#ea5353",
+                "text": "",
+                "textType": "label"
+            }
+        ],
+        "min": 0,
+        "max": "1000",
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8,
+        "styleRounded": true,
+        "styleGlow": false,
+        "className": "",
+        "x": 1060,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1940db6bf2e0c0f4",
+        "type": "ui-led",
+        "z": "855e9a8019e0e61c",
+        "name": "Gas Status LED",
+        "group": "e8dbb8c41abe46a7",
+        "order": 2,
+        "width": 1,
+        "height": "2",
+        "label": "",
+        "labelPlacement": "left",
+        "labelAlignment": "left",
+        "states": [
+            {
+                "value": "false",
+                "valueType": "bool",
+                "color": "#ff0000"
+            },
+            {
+                "value": "true",
+                "valueType": "bool",
+                "color": "#00ff00"
+            }
+        ],
+        "allowColorForValueInMessage": false,
+        "shape": "circle",
+        "showBorder": true,
+        "showGlow": true,
+        "x": 1550,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "ef73df6728049dcf",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "Map Nested to Flat",
+        "func": "// 1. รับค่าจาก ESP32 (ผ่านโหนด JSON ด้านบน)\nlet d = msg.payload;\n\n// ตรวจสอบว่ามีค่าส่งมาจริงไหม\nif (!d || d.MQ2_Raw === undefined) return null;\n\nlet voltage = d.MQ2_Raw;\nlet V_zero = 0.38;\nlet V_max = 3.10; // ปรับให้ตรงกับ max_value ใน YAML\nlet P_max = 5000;\n\n// 2. คำนวณ PPM\nlet ppm = ((voltage - V_zero) * (P_max) / (V_max - V_zero));\nif (ppm < 0) {\n    ppm = 0;\n}\nlet finalPpm = Math.round(ppm);\n\n// 3. เตรียมส่งให้ ThingsBoard\nmsg.payload = {\n    \"mq2_ppm\": finalPpm,\n    \"mq2_voltage\": voltage,\n    \"led_status\": (d.led_status === \"ON\"),\n    \"timestamp\": d.Time\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 820,
+        "wires": [
+            [
+                "806a091dfe91d63b"
+            ]
+        ]
+    },
+    {
+        "id": "806a091dfe91d63b",
+        "type": "mqtt out",
+        "z": "855e9a8019e0e61c",
+        "name": "ThingsBoard Telemetry",
+        "topic": "v1/devices/me/telemetry",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "b149eb57b6dc5cfd",
+        "x": 730,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "e7fba5149fee23ce",
+        "type": "mqtt in",
+        "z": "855e9a8019e0e61c",
+        "name": "ThingsBoard RPC Request",
+        "topic": "v1/devices/me/rpc/request/+",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "b149eb57b6dc5cfd",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 180,
+        "y": 820,
+        "wires": [
+            [
+                "e80e9bc09468f5a2"
+            ]
+        ]
+    },
+    {
+        "id": "8d5205b8b6c3c112",
+        "type": "mqtt out",
+        "z": "855e9a8019e0e61c",
+        "name": "ESPHome Command",
+        "topic": "",
+        "qos": "2",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "c72ccfb0788598f1",
+        "x": 850,
+        "y": 900,
+        "wires": []
+    },
+    {
+        "id": "8732dd833a3e1ae6",
+        "type": "inject",
+        "z": "855e9a8019e0e61c",
+        "d": true,
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "1",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "700",
+        "payloadType": "num",
+        "x": 490,
+        "y": 620,
+        "wires": [
+            [
+                "efd86406a2f89682"
+            ]
+        ]
+    },
+    {
+        "id": "efd86406a2f89682",
+        "type": "debug",
+        "z": "855e9a8019e0e61c",
+        "name": "debug 14",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 560,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "639ffc68115b9ee8",
+        "type": "change",
+        "z": "855e9a8019e0e61c",
+        "name": "lED STaTUS",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "true",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1290,
+        "y": 740,
+        "wires": [
+            [
+                "1940db6bf2e0c0f4"
+            ]
+        ]
+    },
+    {
+        "id": "da3e79784c973be0",
+        "type": "change",
+        "z": "855e9a8019e0e61c",
+        "name": "lED STaTUS",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "false",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1290,
+        "y": 800,
+        "wires": [
+            [
+                "1940db6bf2e0c0f4"
+            ]
+        ]
+    },
+    {
+        "id": "5381bef24e790e87",
+        "type": "switch",
+        "z": "855e9a8019e0e61c",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "ON",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "OFF",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1150,
+        "y": 760,
+        "wires": [
+            [
+                "639ffc68115b9ee8"
+            ],
+            [
+                "da3e79784c973be0"
+            ]
+        ]
+    },
+    {
+        "id": "e80e9bc09468f5a2",
+        "type": "function",
+        "z": "855e9a8019e0e61c",
+        "name": "RPC to ESPHome",
+        "func": "// 1. แยกแยะข้อมูลจาก ThingsBoard Cloud\nvar requestId = msg.topic.split('/').pop();\nvar method = msg.payload.method;\nvar params = msg.payload.params; // ค่า true/false จาก Dashboard\n\nif (method === \"setLedStatus\" || method === \"setValue\") {\n    \n    // 2. สร้าง Payload สำหรับ ESP32 ให้ตรงกับ YAML เดิม\n    // ส่งเป็น \"ON\" หรือ \"OFF\" ตามที่คำสั่งเดิมรับได้\n    var espMsg = {\n        topic: \"s6504035610121/switch/status_led/command\",\n        payload: params ? \"ON\" : \"OFF\"\n    };\n    \n    // 3. ตอบกลับ ThingsBoard Cloud เพื่อยืนยันคำสั่งสำเร็จ\n    var respMsg = {\n        topic: \"v1/devices/me/rpc/response/\" + requestId,\n        payload: { \"status\": \"success\", \"sent_value\": params ? \"ON\" : \"OFF\" }\n    };\n    \n    return [espMsg, respMsg];\n}\nreturn null;",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 960,
+        "wires": [
+            [
+                "8d5205b8b6c3c112"
+            ],
+            [
+                "806a091dfe91d63b"
+            ]
+        ]
+    },
+    {
+        "id": "97e8e0069f537a22",
+        "type": "ui-chart",
+        "z": "855e9a8019e0e61c",
+        "group": "e8dbb8c41abe46a7",
+        "name": "Fire Hazard Monitoring Trend",
+        "label": "chart",
+        "order": 4,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Concentration (ppm)",
+        "yAxisProperty": "payload",
+        "yAxisPropertyType": "msg",
+        "ymin": "",
+        "ymax": "",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": "6",
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 7,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 1070,
+        "y": 360,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c72ccfb0788598f1",
+        "type": "mqtt-broker",
+        "name": "broker.emqx.io",
+        "broker": "broker.emqx.io",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "a2964af0c164f5a7",
+        "type": "blynk-iot-client",
+        "name": "My Blynk Device",
+        "path": "blynk.cloud",
+        "key": "0kkk5bFrGIjCKGdl6Ws4ZFIxUB4_uqLa",
+        "tmpl": "TMPL6gG6hn3VG",
+        "dbg_all": false,
+        "dbg_log": false,
+        "dbg_prop": false,
+        "dbg_sync": false,
+        "dbg_low": false,
+        "dbg_pins": "",
+        "multi_cmd": false,
+        "enabled": true
+    },
+    {
+        "id": "e8dbb8c41abe46a7",
+        "type": "ui-group",
+        "name": "Monitor",
+        "page": "04ea36aebbcf46d0",
+        "width": 12,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "b149eb57b6dc5cfd",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "https://eu.thingsboard.cloud/",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "04ea36aebbcf46d0",
+        "type": "ui-page",
+        "name": "Monitor",
+        "ui": "281088caae252625",
+        "path": "/page3",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "default",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "281088caae252625",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    }
+]
